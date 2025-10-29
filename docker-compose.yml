@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: airflow-health-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - AIRFLOW_BASE_URL=${AIRFLOW_BASE_URL:-http://host.docker.internal:8080}
+      - AIRFLOW_USERNAME=${AIRFLOW_USERNAME:-admin}
+      - AIRFLOW_PASSWORD=${AIRFLOW_PASSWORD:-admin}
+      - AIRFLOW_API_TOKEN=${AIRFLOW_API_TOKEN}
+      - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-120}
+      - REFRESH_INTERVAL_SECONDS=${REFRESH_INTERVAL_SECONDS:-300}
+      - REDIS_URL=${REDIS_URL}
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=8000
+      - CORS_ORIGINS=["http://localhost:3000", "http://localhost"]
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - airflow-health-net
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: airflow-health-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=http://localhost:8000/api/v1
+      - VITE_AIRFLOW_URL=${AIRFLOW_BASE_URL:-http://localhost:8080}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - airflow-health-net
+
+  # Redis (optional caching)
+  redis:
+    image: redis:7-alpine
+    container_name: airflow-health-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - airflow-health-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+networks:
+  airflow-health-net:
+    driver: bridge
+
+volumes:
+  redis-data:
