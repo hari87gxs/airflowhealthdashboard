@@ -3,6 +3,7 @@ Airflow API Client
 Handles all communication with the Airflow REST API.
 """
 
+import asyncio
 import httpx
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
@@ -99,7 +100,7 @@ class AirflowAPIClient:
     ) -> List[Dict[str, Any]]:
         """Fetch DAG runs for a specific DAG within a time range."""
         
-        # Calculate start date based on time range
+        # Calculate start date based on time range (returns ISO 8601 string)
         start_date = self._get_start_date_for_range(time_range)
         
         logger.debug(f"Fetching DAG runs for {dag_id} since {start_date}")
@@ -108,7 +109,7 @@ class AirflowAPIClient:
             f"dags/{dag_id}/dagRuns",
             params={
                 "limit": limit,
-                "start_date_gte": start_date.isoformat(),
+                "start_date_gte": start_date,
                 "order_by": "-execution_date"
             }
         )
@@ -127,12 +128,12 @@ class AirflowAPIClient:
         # Use httpx to make concurrent requests
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             tasks = []
+            start_date = self._get_start_date_for_range(time_range)  # Calculate once outside loop
             for dag_id in dag_ids:
-                start_date = self._get_start_date_for_range(time_range)
                 url = f"{self.base_url}/api/v1/dags/{dag_id}/dagRuns"
                 params = {
                     "limit": 100,
-                    "start_date_gte": start_date.isoformat(),
+                    "start_date_gte": start_date,  # Use string directly
                     "order_by": "-execution_date"
                 }
                 
@@ -161,20 +162,27 @@ class AirflowAPIClient:
         
         return results
     
-    def _get_start_date_for_range(self, time_range: TimeRange) -> datetime:
-        """Calculate the start date based on the time range."""
+    def _get_start_date_for_range(self, time_range: TimeRange) -> str:
+        """Calculate the start date based on the time range.
+        
+        Returns ISO 8601 formatted string with timezone (e.g., '2025-10-28T08:24:22+00:00')
+        that Airflow API expects.
+        """
         now = datetime.utcnow()
         
         if time_range == TimeRange.HOURS_24:
-            return now - timedelta(hours=24)
+            start_date = now - timedelta(hours=24)
         elif time_range == TimeRange.DAYS_7:
-            return now - timedelta(days=7)
+            start_date = now - timedelta(days=7)
         elif time_range == TimeRange.DAYS_30:
-            return now - timedelta(days=30)
+            start_date = now - timedelta(days=30)
         else:
-            return now - timedelta(hours=24)
+            start_date = now - timedelta(hours=24)
+        
+        # Format as ISO 8601 with timezone (Airflow expects this format)
+        # Return string in format: 2025-10-28T08:24:22+00:00
+        return start_date.strftime('%Y-%m-%dT%H:%M:%S+00:00')
 
 
 # Global client instance
-import asyncio
 airflow_client = AirflowAPIClient()

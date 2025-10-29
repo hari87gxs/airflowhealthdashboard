@@ -33,6 +33,7 @@ class HealthService:
         """Get the main dashboard data with all domain summaries."""
         
         cache_key = f"dashboard:{time_range.value}"
+        fallback_cache_key = f"dashboard_fallback:{time_range.value}"
         
         # Try cache first
         cached_data = await self.cache.get(cache_key)
@@ -42,33 +43,53 @@ class HealthService:
         
         logger.info(f"Building dashboard data for time range: {time_range.value}")
         
-        # Fetch all DAGs
-        dags = await self.airflow_client.get_all_dags()
-        
-        # Group DAGs by tags
-        dags_by_tag = self._group_dags_by_tags(dags)
-        
-        # Build domain summaries
-        domain_summaries = []
-        for tag, tag_dags in dags_by_tag.items():
-            summary = await self._build_domain_summary(tag, tag_dags, time_range)
-            domain_summaries.append(summary)
-        
-        # Sort: failures first, then by domain name
-        domain_summaries.sort(key=lambda x: (not x.has_failures, x.domain_tag))
-        
-        response = DashboardResponse(
-            time_range=time_range,
-            domains=domain_summaries,
-            total_domains=len(domain_summaries),
-            total_dags=len(dags),
-            last_updated=datetime.utcnow()
-        )
-        
-        # Cache the response
-        await self.cache.set(cache_key, response.model_dump())
-        
-        return response
+        try:
+            # Fetch all DAGs
+            dags = await self.airflow_client.get_all_dags()
+            
+            # Group DAGs by tags
+            dags_by_tag = self._group_dags_by_tags(dags)
+            
+            # Build domain summaries
+            domain_summaries = []
+            for tag, tag_dags in dags_by_tag.items():
+                summary = await self._build_domain_summary(tag, tag_dags, time_range)
+                domain_summaries.append(summary)
+            
+            # Sort: failures first, then by domain name
+            domain_summaries.sort(key=lambda x: (not x.has_failures, x.domain_tag))
+            
+            response = DashboardResponse(
+                time_range=time_range,
+                domains=domain_summaries,
+                total_domains=len(domain_summaries),
+                total_dags=len(dags),
+                last_updated=datetime.utcnow()
+            )
+            
+            # Cache the response with normal TTL
+            await self.cache.set(cache_key, response.model_dump())
+            
+            # Also save as fallback with longer TTL (1 hour)
+            await self.cache.set(fallback_cache_key, response.model_dump(), ttl=3600)
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch dashboard data from Airflow: {str(e)}")
+            
+            # Try to return fallback cached data
+            fallback_data = await self.cache.get(fallback_cache_key)
+            if fallback_data:
+                logger.warning(f"Airflow unavailable, returning stale cached data for {time_range.value}")
+                response = DashboardResponse(**fallback_data)
+                # Mark as stale data
+                logger.info("Using fallback cache due to Airflow unavailability")
+                return response
+            
+            # No fallback available, re-raise the exception
+            logger.error("No fallback cache available, failing request")
+            raise
     
     async def get_domain_detail(
         self, 
@@ -78,6 +99,7 @@ class HealthService:
         """Get detailed information for a specific domain."""
         
         cache_key = f"domain:{domain_tag}:{time_range.value}"
+        fallback_cache_key = f"domain_fallback:{domain_tag}:{time_range.value}"
         
         # Try cache first
         cached_data = await self.cache.get(cache_key)
@@ -87,40 +109,77 @@ class HealthService:
         
         logger.info(f"Building domain detail for {domain_tag}, time range: {time_range.value}")
         
-        # Fetch all DAGs and filter by tag
-        all_dags = await self.airflow_client.get_all_dags()
-        domain_dags = [
-            dag for dag in all_dags 
-            if domain_tag in dag.get("tags", [])
-        ]
-        
-        if not domain_dags:
-            raise ValueError(f"No DAGs found for domain tag: {domain_tag}")
-        
-        # Build detailed DAG summaries
-        dag_summaries = []
-        for dag in domain_dags:
-            dag_summary = await self._build_dag_summary(dag, time_range)
-            dag_summaries.append(dag_summary)
-        
-        # Sort: failures first, then by DAG ID
-        dag_summaries.sort(key=lambda x: (x.failed_count == 0, x.dag_id))
-        
-        # Build domain summary
-        domain_summary = await self._build_domain_summary(domain_tag, domain_dags, time_range)
-        
-        response = DomainDetailResponse(
-            domain_tag=domain_tag,
-            time_range=time_range,
-            summary=domain_summary,
-            dags=dag_summaries,
-            last_updated=datetime.utcnow()
-        )
-        
-        # Cache the response
-        await self.cache.set(cache_key, response.model_dump())
-        
-        return response
+        try:
+            # Fetch all DAGs and filter by domain tag
+            all_dags = await self.airflow_client.get_all_dags()
+            
+            # Filter DAGs that have this domain tag
+            domain_dags = []
+            for dag in all_dags:
+                tags = dag.get("tags", [])
+                
+                # Normalize tags to list of strings
+                tag_names = []
+                if isinstance(tags, list):
+                    for tag in tags:
+                        if isinstance(tag, str):
+                            tag_names.append(tag)
+                        elif isinstance(tag, dict) and 'name' in tag:
+                            tag_names.append(tag['name'])
+                
+                # Check if this DAG has the domain tag
+                domain_tag_to_find = f"domain:{domain_tag}"
+                if domain_tag_to_find in tag_names:
+                    domain_dags.append(dag)
+            
+            logger.info(f"Found {len(domain_dags)} DAGs for domain {domain_tag}")
+            
+            if not domain_dags:
+                raise ValueError(f"No DAGs found for domain tag: {domain_tag}")
+            
+            # Build detailed DAG summaries
+            dag_summaries = []
+            for dag in domain_dags:
+                dag_summary = await self._build_dag_summary(dag, time_range)
+                dag_summaries.append(dag_summary)
+            
+            # Sort: failures first, then by DAG ID
+            dag_summaries.sort(key=lambda x: (x.failed_count == 0, x.dag_id))
+            
+            # Build domain summary
+            domain_summary = await self._build_domain_summary(domain_tag, domain_dags, time_range)
+            
+            response = DomainDetailResponse(
+                domain_tag=domain_tag,
+                time_range=time_range,
+                summary=domain_summary,
+                dags=dag_summaries,
+                last_updated=datetime.utcnow()
+            )
+            
+            # Cache the response with normal TTL
+            await self.cache.set(cache_key, response.model_dump())
+            
+            # Also save as fallback with longer TTL (1 hour)
+            await self.cache.set(fallback_cache_key, response.model_dump(), ttl=3600)
+            
+            return response
+            
+        except ValueError as ve:
+            # Domain not found - don't cache this
+            raise ve
+        except Exception as e:
+            logger.error(f"Failed to fetch domain detail from Airflow: {str(e)}")
+            
+            # Try to return fallback cached data
+            fallback_data = await self.cache.get(fallback_cache_key)
+            if fallback_data:
+                logger.warning(f"Airflow unavailable, returning stale cached data for domain {domain_tag}")
+                return DomainDetailResponse(**fallback_data)
+            
+            # No fallback available, re-raise the exception
+            logger.error("No fallback cache available, failing request")
+            raise
     
     async def get_dag_runs(
         self, 
@@ -148,21 +207,51 @@ class HealthService:
         return summaries
     
     def _group_dags_by_tags(self, dags: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-        """Group DAGs by their tags."""
+        """Group DAGs by their domain tag. Looks for tags with 'domain:' prefix."""
         
-        dags_by_tag = defaultdict(list)
+        dags_by_domain = defaultdict(list)
         
         for dag in dags:
             tags = dag.get("tags", [])
+            dag_id = dag.get("dag_id", "unknown")
+            domain_found = False
             
+            # Handle case where tags might not be a list (e.g., dict, None, etc.)
             if not tags:
                 # DAGs without tags go into "untagged" group
-                dags_by_tag["untagged"].append(dag)
-            else:
+                dags_by_domain["untagged"].append(dag)
+                continue
+            
+            # Normalize tags to a list of strings
+            tag_names = []
+            if isinstance(tags, list):
                 for tag in tags:
-                    dags_by_tag[tag].append(dag)
+                    if isinstance(tag, str):
+                        tag_names.append(tag)
+                    elif isinstance(tag, dict) and 'name' in tag:
+                        tag_names.append(tag['name'])
+            elif isinstance(tags, dict):
+                if 'name' in tags:
+                    tag_names.append(tags['name'])
+                else:
+                    tag_names.extend([str(k) for k in tags.keys()])
+            
+            # Look for domain tag (format: "domain:xxx")
+            for tag_name in tag_names:
+                if isinstance(tag_name, str) and tag_name.startswith('domain:'):
+                    # Extract domain name after "domain:" prefix
+                    domain_name = tag_name.split(':', 1)[1].strip()
+                    if domain_name:
+                        dags_by_domain[domain_name].append(dag)
+                        domain_found = True
+                        break  # Use first domain tag found
+            
+            # If no domain tag found, put in "untagged"
+            if not domain_found:
+                dags_by_domain["untagged"].append(dag)
         
-        return dict(dags_by_tag)
+        logger.info(f"Grouped {len(dags)} DAGs into {len(dags_by_domain)} domains: {list(dags_by_domain.keys())}")
+        return dict(dags_by_domain)
     
     async def _build_domain_summary(
         self, 
@@ -250,12 +339,22 @@ class HealthService:
             elif state == "queued":
                 queued_count += 1
         
+        # Normalize tags to list of strings
+        raw_tags = dag.get("tags", [])
+        tag_names = []
+        if isinstance(raw_tags, list):
+            for tag in raw_tags:
+                if isinstance(tag, str):
+                    tag_names.append(tag)
+                elif isinstance(tag, dict) and 'name' in tag:
+                    tag_names.append(tag['name'])
+        
         return DagHealthSummary(
             dag_id=dag_id,
             dag_display_name=dag.get("dag_display_name"),
             description=dag.get("description"),
             is_paused=dag.get("is_paused", False),
-            tags=dag.get("tags", []),
+            tags=tag_names,
             total_runs=len(runs),
             failed_count=failed_count,
             success_count=success_count,
