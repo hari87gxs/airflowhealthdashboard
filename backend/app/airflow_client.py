@@ -182,6 +182,58 @@ class AirflowAPIClient:
         # Format as ISO 8601 with timezone (Airflow expects this format)
         # Return string in format: 2025-10-28T08:24:22+00:00
         return start_date.strftime('%Y-%m-%dT%H:%M:%S+00:00')
+    
+    async def get_failed_task_logs(
+        self,
+        dag_id: str,
+        dag_run_id: str,
+        task_id: str,
+        try_number: int = 1
+    ) -> Optional[str]:
+        """
+        Fetch logs for a failed task instance.
+        
+        Args:
+            dag_id: DAG identifier
+            dag_run_id: DAG run identifier  
+            task_id: Task identifier
+            try_number: Task attempt number (default: 1)
+            
+        Returns:
+            Task logs as string, or None if not available
+        """
+        try:
+            response = await self._make_request(
+                f"dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}/logs/{try_number}"
+            )
+            return response.get("content", "")
+        except Exception as e:
+            logger.warning(f"Failed to fetch logs for {dag_id}/{task_id}: {str(e)}")
+            return None
+    
+    async def get_task_instances(
+        self,
+        dag_id: str,
+        dag_run_id: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch all task instances for a DAG run.
+        
+        Args:
+            dag_id: DAG identifier
+            dag_run_id: DAG run identifier
+            
+        Returns:
+            List of task instance details
+        """
+        try:
+            response = await self._make_request(
+                f"dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances"
+            )
+            return response.get("task_instances", [])
+        except Exception as e:
+            logger.error(f"Failed to fetch task instances for {dag_id}/{dag_run_id}: {str(e)}")
+            return []
 
 
 # Global client instance

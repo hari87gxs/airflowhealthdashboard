@@ -124,3 +124,32 @@ async def clear_cache():
     except Exception as e:
         logger.error(f"Error clearing cache: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to clear cache: {str(e)}")
+
+
+@router.get("/analysis/failures")
+async def get_failure_analysis(
+    time_range: TimeRange = Query(
+        TimeRange.HOURS_24,
+        description="Time range for failure analysis"
+    )
+):
+    """
+    Get AI-powered failure analysis for all failed DAGs.
+    
+    Returns:
+    - llm_analysis: AI-generated summary, categories, and action items
+    - failed_dags: List of DAGs with failures
+    - consolidated_logs: Logs from failed task instances
+    - metadata: Total counts and timestamps
+    """
+    try:
+        logger.info(f"GET /analysis/failures - time_range: {time_range.value}")
+        return await health_service.get_failure_analysis(time_range)
+    except Exception as e:
+        import traceback
+        logger.error(f"Error generating failure analysis: {str(e)}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to generate failure analysis: {str(e)}"
+        )

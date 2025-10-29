@@ -193,13 +193,16 @@ class HealthService:
         
         summaries = []
         for run in runs:
+            if run is None:
+                logger.warning(f"Found None run in DAG {dag_id}, skipping")
+                continue
             summary = DagRunSummary(
                 dag_id=dag_id,
                 dag_run_id=run["dag_run_id"],
                 execution_date=datetime.fromisoformat(run["execution_date"].replace("Z", "+00:00")),
                 start_date=datetime.fromisoformat(run["start_date"].replace("Z", "+00:00")) if run.get("start_date") else None,
                 end_date=datetime.fromisoformat(run["end_date"].replace("Z", "+00:00")) if run.get("end_date") else None,
-                state=DagRunState(run["state"]),
+                state=DagRunState(run.get("state") or "queued"),  # Default to queued if state is None
                 airflow_url=f"{settings.airflow_base_url}/dags/{dag_id}/grid?dag_run_id={run['dag_run_id']}"
             )
             summaries.append(summary)
@@ -273,7 +276,14 @@ class HealthService:
         
         for dag_id, runs in all_runs.items():
             for run in runs:
-                state = run.get("state", "").lower()
+                if run is None:
+                    logger.warning(f"Found None run in {dag_id}, skipping")
+                    continue
+                state_raw = run.get("state", "")
+                if state_raw is None:
+                    logger.warning(f"Found None state in {dag_id}, using empty string")
+                    state_raw = ""
+                state = state_raw.lower()
                 total_runs += 1
                 
                 if state == "failed":
@@ -322,7 +332,14 @@ class HealthService:
         last_run_date = None
         
         for i, run in enumerate(runs):
-            state = run.get("state", "").lower()
+            if run is None:
+                logger.warning(f"Found None run at index {i} in DAG runs, skipping")
+                continue
+            state_raw = run.get("state", "")
+            if state_raw is None:
+                logger.warning(f"Found None state at index {i}, using empty string")
+                state_raw = ""
+            state = state_raw.lower()
             
             if i == 0:  # First run is the most recent
                 last_run_state = DagRunState(state) if state in [s.value for s in DagRunState] else None
@@ -364,6 +381,166 @@ class HealthService:
             last_run_date=last_run_date,
             airflow_dag_url=f"{settings.airflow_base_url}/dags/{dag_id}/grid"
         )
+    
+    async def get_failure_analysis(self, time_range: TimeRange = TimeRange.HOURS_24) -> Dict[str, Any]:
+        """
+        Get AI-powered analysis of all failures in the specified time range.
+        
+        Returns:
+            Dict with:
+            - llm_analysis: AI-generated summary, categories, action items
+            - failed_dags: List of DAGs with failures
+            - consolidated_logs: Logs from failed task instances
+        """
+        from app.llm_service import llm_service
+        
+        cache_key = f"failure_analysis:{time_range.value}"
+        
+        # Try cache first (shorter TTL for analysis)
+        cached_data = await self.cache.get(cache_key)
+        if cached_data:
+            logger.debug(f"Returning cached failure analysis for {time_range.value}")
+            return cached_data
+        
+        logger.info(f"Building failure analysis for time range: {time_range.value}")
+        
+        # Get all DAGs
+        all_dags = await self.airflow_client.get_all_dags()
+        
+        # Get runs for all DAGs to find failures
+        dag_ids = [dag["dag_id"] for dag in all_dags]
+        all_runs = await self.airflow_client.get_all_dag_runs_for_dags(dag_ids, time_range)
+        
+        # Find DAGs with failures
+        failed_dags = []
+        failed_runs_by_dag = {}
+        
+        for dag in all_dags:
+            dag_id = dag["dag_id"]
+            runs = all_runs.get(dag_id, [])
+            
+            failed_runs = [
+                run for run in runs 
+                if run is not None and (run.get("state") or "").lower() == "failed"
+            ]
+            
+            if failed_runs:
+                # Get domain tag
+                domain_tag = "untagged"
+                tags = dag.get("tags", [])
+                if isinstance(tags, list):
+                    for tag in tags:
+                        tag_name = tag if isinstance(tag, str) else tag.get('name', '')
+                        if tag_name.startswith('domain:'):
+                            domain_tag = tag_name.split(':', 1)[1].strip()
+                            break
+                
+                failed_dags.append({
+                    "dag_id": dag_id,
+                    "domain_tag": domain_tag,
+                    "description": dag.get("description"),
+                    "failed_count": len(failed_runs),
+                    "tags": [t if isinstance(t, str) else t.get('name', '') for t in tags]
+                })
+                failed_runs_by_dag[dag_id] = failed_runs
+        
+        # Fetch consolidated logs for failed runs (limit to avoid overwhelming)
+        consolidated_logs = await self._fetch_consolidated_logs(failed_runs_by_dag, limit=10)
+        
+        # Generate LLM analysis with fallback
+        try:
+            llm_analysis = await llm_service.analyze_failures(failed_dags, failed_runs_by_dag)
+        except Exception as e:
+            logger.error(f"LLM analysis failed: {str(e)}, using fallback")
+            # Provide a basic fallback response
+            llm_analysis = {
+                "summary": f"Unable to generate AI analysis: {str(e)}. Found {len(failed_dags)} failed DAGs with {sum(len(runs) for runs in failed_runs_by_dag.values())} total failures.",
+                "categories": [],
+                "action_items": [],
+                "error": str(e)
+            }
+        
+        result = {
+            "llm_analysis": llm_analysis,
+            "failed_dags": failed_dags,
+            "consolidated_logs": consolidated_logs,
+            "time_range": time_range.value,
+            "total_failed_dags": len(failed_dags),
+            "total_failed_runs": sum(len(runs) for runs in failed_runs_by_dag.values()),
+            "total_analyzed_dags": len(all_dags),
+            "generated_at": datetime.utcnow().isoformat()
+        }
+        
+        # Cache for 5 minutes (analysis can be expensive)
+        await self.cache.set(cache_key, result, ttl=300)
+        
+        return result
+    
+    async def _fetch_consolidated_logs(
+        self, 
+        failed_runs_by_dag: Dict[str, List[Dict[str, Any]]], 
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch logs for failed task instances across multiple DAGs.
+        
+        Args:
+            failed_runs_by_dag: Dict mapping dag_id to list of failed runs
+            limit: Maximum number of DAG runs to fetch logs for
+            
+        Returns:
+            List of log entries with dag_id, run_id, task_id, and log content
+        """
+        logs = []
+        count = 0
+        
+        for dag_id, runs in failed_runs_by_dag.items():
+            if count >= limit:
+                break
+            
+            for run in runs[:2]:  # Max 2 runs per DAG
+                if count >= limit:
+                    break
+                
+                if run is None:
+                    logger.warning(f"Found None run in DAG {dag_id}, skipping")
+                    continue
+                
+                dag_run_id = run.get("dag_run_id")
+                
+                # Get task instances for this run
+                task_instances = await self.airflow_client.get_task_instances(dag_id, dag_run_id)
+                
+                # Find failed tasks
+                failed_tasks = [
+                    task for task in task_instances 
+                    if task is not None and (task.get("state") or "").lower() == "failed"
+                ]
+                
+                for task in failed_tasks[:1]:  # Only first failed task per run
+                    task_id = task.get("task_id")
+                    try_number = task.get("try_number", 1)
+                    
+                    # Fetch logs
+                    log_content = await self.airflow_client.get_failed_task_logs(
+                        dag_id, dag_run_id, task_id, try_number
+                    )
+                    
+                    if log_content:
+                        logs.append({
+                            "dag_id": dag_id,
+                            "dag_run_id": dag_run_id,
+                            "task_id": task_id,
+                            "execution_date": run.get("execution_date"),
+                            "log_content": log_content[:5000],  # Limit log size
+                            "airflow_log_url": f"{settings.airflow_base_url}/dags/{dag_id}/grid?dag_run_id={dag_run_id}&task_id={task_id}"
+                        })
+                        count += 1
+                        
+                        if count >= limit:
+                            break
+        
+        return logs
 
 
 # Global service instance

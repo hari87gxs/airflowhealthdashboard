@@ -92,6 +92,18 @@ export const api = {
     const response = await apiClient.post('/cache/clear');
     return response.data;
   },
+
+  /**
+   * Get AI-powered failure analysis
+   * @param {string} timeRange - '24h', '7d', or '30d'
+   */
+  async getFailureAnalysis(timeRange = '24h') {
+    const response = await apiClient.get('/analysis/failures', {
+      params: { time_range: timeRange },
+      timeout: 60000, // 60 second timeout for LLM analysis
+    });
+    return response.data;
+  },
 };
 
 export default api;

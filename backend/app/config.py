@@ -61,6 +61,38 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = Field("INFO", description="Logging level")
     
+    # LLM Configuration for Failure Analysis
+    llm_provider: str = Field(
+        "azure_openai", 
+        description="LLM provider: openai, anthropic, azure_openai"
+    )
+    llm_api_key: Optional[str] = Field(
+        None, 
+        description="LLM API key for failure analysis"
+    )
+    llm_model: str = Field(
+        "gpt-4o", 
+        description="LLM model to use (e.g., gpt-4o, gpt-4, gpt-3.5-turbo, claude-3-5-sonnet-20241022)"
+    )
+    llm_enabled: bool = Field(
+        True, 
+        description="Enable/disable LLM-powered failure analysis"
+    )
+    
+    # Azure OpenAI specific configuration
+    azure_openai_endpoint: Optional[str] = Field(
+        None,
+        description="Azure OpenAI endpoint URL (e.g., https://your-resource.openai.azure.com/)"
+    )
+    azure_openai_api_version: str = Field(
+        "2024-08-01-preview",
+        description="Azure OpenAI API version"
+    )
+    azure_openai_deployment_name: Optional[str] = Field(
+        None,
+        description="Azure OpenAI deployment name for your model"
+    )
+    
     @validator("airflow_base_url")
     def validate_airflow_url(cls, v):
         """Ensure Airflow URL doesn't end with slash."""

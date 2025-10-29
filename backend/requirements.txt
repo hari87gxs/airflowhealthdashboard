@@ -7,6 +7,9 @@ pydantic-settings==2.1.0
 # HTTP Client for Airflow API
 httpx==0.25.2
 
+# LLM Integration for Failure Analysis
+openai==1.54.0
+
 # Caching
 redis==5.0.1
 hiredis==2.2.3

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { formatDistanceToNow } from 'date-fns';
+import FailureAnalysis from './FailureAnalysis';
 
 const TIME_RANGES = [
   { value: '24h', label: 'Last 24 Hours' },
@@ -267,6 +268,11 @@ function Dashboard() {
           <p className="text-gray-500">No domains found. Make sure your DAGs have tags configured in Airflow.</p>
         </div>
       )}
+
+      {/* AI-Powered Failure Analysis */}
+      <div className="mt-8">
+        <FailureAnalysis timeRange={timeRange} />
+      </div>
     </div>
   );
 }
