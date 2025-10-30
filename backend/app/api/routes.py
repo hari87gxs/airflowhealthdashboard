@@ -17,6 +17,8 @@ from app.models import (
 from app.service import health_service
 from app.airflow_client import airflow_client
 from app.cache import cache_service
+from app.slack_service import slack_service
+from app.scheduler import scheduled_reporter
 from app import __version__
 
 router = APIRouter()
@@ -153,3 +155,101 @@ async def get_failure_analysis(
             status_code=500, 
             detail=f"Failed to generate failure analysis: {str(e)}"
         )
+
+
+@router.post("/slack/test")
+async def test_slack_connection():
+    """
+    Test Slack webhook connection.
+    
+    Sends a test message to verify the Slack integration is configured correctly.
+    """
+    try:
+        logger.info("POST /slack/test - Testing Slack connection")
+        success = await slack_service.test_connection()
+        
+        if success:
+            return {
+                "status": "success",
+                "message": "Slack connection test successful! Check your Slack channel for the test message."
+            }
+        else:
+            return {
+                "status": "failed",
+                "message": "Slack connection test failed. Check webhook URL configuration."
+            }
+    except Exception as e:
+        logger.error(f"Error testing Slack connection: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Slack test failed: {str(e)}")
+
+
+@router.post("/reports/send")
+async def send_report_now(
+    time_range: TimeRange = Query(
+        TimeRange.HOURS_24,
+        description="Time range for the report"
+    ),
+    include_ai_analysis: bool = Query(
+        True,
+        description="Include AI-powered failure analysis in the report"
+    )
+):
+    """
+    Manually trigger a Slack report.
+    
+    This endpoint allows you to send an on-demand health report to Slack
+    without waiting for the scheduled times.
+    """
+    try:
+        logger.info(f"POST /reports/send - Sending manual report for {time_range.value}")
+        
+        success = await scheduled_reporter.generate_and_send_report(
+            time_range=time_range,
+            include_ai_analysis=include_ai_analysis
+        )
+        
+        if success:
+            return {
+                "status": "success",
+                "message": f"Health report sent to Slack successfully!",
+                "time_range": time_range.value,
+                "ai_analysis_included": include_ai_analysis,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            return {
+                "status": "failed",
+                "message": "Failed to send report to Slack. Check logs for details.",
+                "time_range": time_range.value
+            }
+    
+    except Exception as e:
+        logger.error(f"Error sending manual report: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send report: {str(e)}")
+
+
+@router.get("/reports/schedule")
+async def get_report_schedule():
+    """
+    Get current scheduled report configuration.
+    
+    Returns information about when reports are scheduled to be sent.
+    """
+    from app.config import settings
+    
+    return {
+        "scheduled_reports_enabled": settings.scheduled_reports_enabled,
+        "slack_enabled": settings.slack_enabled,
+        "morning_report": {
+            "time": f"{settings.morning_report_hour:02d}:{settings.morning_report_minute:02d}",
+            "enabled": settings.scheduled_reports_enabled and settings.slack_enabled
+        },
+        "evening_report": {
+            "time": f"{settings.evening_report_hour:02d}:{settings.evening_report_minute:02d}",
+            "enabled": settings.scheduled_reports_enabled and settings.slack_enabled
+        },
+        "dashboard_url": settings.dashboard_url,
+        "current_time": datetime.utcnow().strftime("%H:%M:%S"),
+        "timezone": "UTC"
+    }
+

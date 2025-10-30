@@ -93,10 +93,60 @@ class Settings(BaseSettings):
         description="Azure OpenAI deployment name for your model"
     )
     
+    # Slack Configuration
+    slack_webhook_url: Optional[str] = Field(
+        None,
+        description="Slack webhook URL for notifications"
+    )
+    slack_enabled: bool = Field(
+        True,
+        description="Enable/disable Slack notifications"
+    )
+    
+    # Scheduled Reporting Configuration
+    scheduled_reports_enabled: bool = Field(
+        True,
+        description="Enable/disable scheduled reports"
+    )
+    morning_report_hour: int = Field(
+        10,
+        description="Hour for morning report (0-23, default: 10 for 10 AM)"
+    )
+    morning_report_minute: int = Field(
+        0,
+        description="Minute for morning report (0-59, default: 0)"
+    )
+    evening_report_hour: int = Field(
+        19,
+        description="Hour for evening report (0-23, default: 19 for 7 PM)"
+    )
+    evening_report_minute: int = Field(
+        0,
+        description="Minute for evening report (0-59, default: 0)"
+    )
+    dashboard_url: str = Field(
+        "https://dashboard.yourcompany.com",
+        description="Public URL to the dashboard for Slack links"
+    )
+    
     @validator("airflow_base_url")
     def validate_airflow_url(cls, v):
         """Ensure Airflow URL doesn't end with slash."""
         return v.rstrip("/")
+    
+    @validator("morning_report_hour", "evening_report_hour")
+    def validate_hour(cls, v):
+        """Validate hour is between 0-23."""
+        if not 0 <= v <= 23:
+            raise ValueError("Hour must be between 0 and 23")
+        return v
+    
+    @validator("morning_report_minute", "evening_report_minute")
+    def validate_minute(cls, v):
+        """Validate minute is between 0-59."""
+        if not 0 <= v <= 59:
+            raise ValueError("Minute must be between 0 and 59")
+        return v
     
     @validator("airflow_api_token", "airflow_username", "airflow_password")
     def validate_auth(cls, v, values):

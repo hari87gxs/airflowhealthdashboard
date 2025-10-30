@@ -1,0 +1,46 @@
+# Example Terraform Variables
+# Copy this file to terraform.tfvars and fill in your values
+
+# AWS Configuration
+aws_region = "us-east-1"
+environment = "prod"
+project_name = "airflow-health-dashboard"
+
+# Network Configuration
+vpc_cidr = "10.0.0.0/16"
+availability_zones = ["us-east-1a", "us-east-1b"]
+
+# ECS Task Resources
+backend_cpu = 512
+backend_memory = 1024
+frontend_cpu = 256
+frontend_memory = 512
+scheduler_cpu = 256
+scheduler_memory = 512
+
+# Redis Configuration
+redis_node_type = "cache.t3.micro"
+
+# Domain and SSL (Optional)
+# domain_name = "airflow-dashboard.example.com"
+# certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/..."
+
+# Airflow Configuration
+airflow_url = "https://your-airflow-instance.com"
+airflow_username = "your-airflow-username"
+airflow_password = "your-airflow-password"
+
+# Azure OpenAI Configuration
+azure_openai_endpoint = "https://your-openai-instance.openai.azure.com/"
+azure_openai_key = "your-azure-openai-key"
+azure_openai_deployment = "gpt-4"
+
+# Slack Configuration (Optional - for scheduled reports)
+slack_webhook_url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+dashboard_url = "https://airflow-dashboard.example.com"
+
+# Report Schedule (UTC times)
+morning_report_hour = 10    # 10 AM UTC
+morning_report_minute = 0
+evening_report_hour = 19    # 7 PM UTC
+evening_report_minute = 0

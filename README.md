@@ -16,21 +16,31 @@ A comprehensive monitoring and analytics dashboard for Apache Airflow deployment
 - **Actionable Recommendations**: Prioritized action items with specific affected DAGs
 - **Root Cause Analysis**: Deep insights into failure causes and prevention strategies
 
+### Slack Integration 🆕
+- **Automated Reports**: Scheduled health reports at 10 AM & 7 PM UTC (configurable)
+- **Rich Message Formatting**: Visual health bars, emojis, and Slack Block Kit
+- **AI Insights in Slack**: GPT-4 analysis delivered directly to your team
+- **Manual Triggers**: On-demand report generation via API
+- **Critical Alerts**: Immediate notifications for health issues
+
 ### Advanced Capabilities
 - **Interactive Dashboard**: Modern React-based UI with real-time updates and responsive design
 - **Historical Trends**: Track performance trends and identify patterns over time
 - **Detailed Logging**: Comprehensive failure logs with task-level error details
 - **REST API**: Full REST API for integration with monitoring tools and automation systems
 - **Robust Error Handling**: Comprehensive null-safety and defensive programming
+- **AWS Deployment Ready**: Complete Terraform infrastructure as code for production deployment
 
 ## 🏗️ Architecture
 
-The dashboard consists of four main components:
+The dashboard consists of five main components:
 
 1. **Frontend**: React 18 + Vite application with Tailwind CSS for modern, responsive UI
 2. **Backend**: FastAPI-based Python service with async processing and background tasks
-3. **AI Service**: Azure OpenAI integration for intelligent failure analysis and recommendations
-4. **Airflow Integration**: Direct integration with Airflow REST API for real-time data access
+3. **Scheduler**: Automated reporting service for scheduled Slack notifications
+4. **AI Service**: Azure OpenAI integration for intelligent failure analysis and recommendations
+5. **Airflow Integration**: Direct integration with Airflow REST API for real-time data access
+6. **Redis Cache**: Distributed caching for performance optimization
 
 ### Key Technical Improvements
 - ✅ **Null-Safety**: Comprehensive null pointer error prevention with defensive programming
@@ -112,6 +122,12 @@ npm run dev
 - `GET /api/v1/analysis/failures?time_range=24h` - Get comprehensive failure analysis with AI insights
 - `GET /api/v1/domains/{domain}/dags?time_range=24h` - Get detailed DAG information for a specific domain
 
+### Slack & Reporting Endpoints 🆕
+
+- `POST /api/slack/test` - Test Slack webhook connection
+- `POST /api/reports/send` - Manually trigger a health report to Slack
+- `GET /api/reports/schedule` - Get current report schedule configuration
+
 ### Sample API Response
 
 ```json
@@ -145,6 +161,7 @@ npm run dev
 
 #### Backend Configuration (.env)
 ```bash
+# Airflow Connection
 AIRFLOW_BASE_URL=https://your-airflow-instance.com
 AIRFLOW_USERNAME=your_username
 AIRFLOW_PASSWORD=your_password
@@ -154,9 +171,23 @@ AZURE_OPENAI_API_KEY=your_api_key
 AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com
 AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
 
-# Cache Configuration
+# Redis Cache
+REDIS_HOST=localhost
+REDIS_PORT=6379
 CACHE_TTL=120
 REFRESH_INTERVAL=300
+
+# Slack Integration (optional)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+SLACK_ENABLED=true
+DASHBOARD_URL=http://localhost:3000
+
+# Scheduled Reports (optional)
+SCHEDULED_REPORTS_ENABLED=true
+MORNING_REPORT_HOUR=10
+MORNING_REPORT_MINUTE=0
+EVENING_REPORT_HOUR=19
+EVENING_REPORT_MINUTE=0
 ```
 
 #### Frontend Configuration
@@ -251,4 +282,43 @@ For detailed documentation, see:
 - [Architecture Guide](ARCHITECTURE.md)
 - [API Documentation](API.md)
 - [Getting Started Guide](GETTING_STARTED.md)
+- [AWS Deployment Guide](AWS_DEPLOYMENT.md) 🆕
+- [Slack Integration Guide](SLACK_INTEGRATION.md) 🆕
 - [Deployment Guide](DEPLOYMENT.md)
+
+## 🚀 AWS Deployment
+
+Deploy to AWS with ECS Fargate, Application Load Balancer, and ElastiCache Redis:
+
+```bash
+# 1. Configure Terraform variables
+cd terraform
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your values
+
+# 2. Run deployment script
+cd ..
+./scripts/deploy.sh
+```
+
+Estimated AWS costs: **$135-145/month**
+
+See [AWS_DEPLOYMENT.md](AWS_DEPLOYMENT.md) for detailed instructions.
+
+## 📬 Slack Notifications
+
+Set up automated Slack reports:
+
+```bash
+# 1. Create Slack Incoming Webhook
+# Visit: https://api.slack.com/messaging/webhooks
+
+# 2. Configure environment
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
+export SLACK_ENABLED=true
+
+# 3. Test integration
+curl -X POST http://localhost:8000/api/slack/test
+```
+
+See [SLACK_INTEGRATION.md](SLACK_INTEGRATION.md) for complete guide.
