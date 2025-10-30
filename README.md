@@ -1,203 +1,254 @@
-# Airflow Domain-Specific Health Dashboard
+# Airflow Health Dashboard
 
-A read-only web dashboard that provides high-level health monitoring for Airflow DAGs grouped by business domains/systems.
+A comprehensive monitoring and analytics dashboard for Apache Airflow deployments, providing real-time insights into DAG health, failure patterns, and AI-powered recommendations for system optimization.
 
-## Overview
+## 🚀 Features
 
-This dashboard aggregates the health status of 250+ Airflow DAGs by their domain tags (e.g., Finance, Marketing, Data-Science), providing at-a-glance visibility into system health without diving into individual DAG details.
+### Core Monitoring
+- **Real-time DAG Monitoring**: Track health and status of 294+ DAGs across multiple domains
+- **Domain-based Organization**: Automated categorization across 8 business domains (Finance, Ecosystem, Marketing, etc.)
+- **Comprehensive Health Metrics**: Success rates, failure counts, and performance trends
+- **Background Caching**: 5-minute TTL caching system for optimal performance
 
-## Key Features
+### AI-Powered Analysis
+- **Intelligent Failure Analysis**: Azure OpenAI GPT-4o integration for smart failure categorization
+- **Pattern Recognition**: Automatic identification of failure patterns (Data Quality, Configuration, Infrastructure)
+- **Actionable Recommendations**: Prioritized action items with specific affected DAGs
+- **Root Cause Analysis**: Deep insights into failure causes and prevention strategies
 
-- **System-Level Health Aggregation**: View Failed, Success, and Running counts by business domain
-- **Time-Based Filtering**: Filter data by Last 24 Hours, Last 7 Days, etc.
-- **Drill-Down Capabilities**: Click on a domain to see individual DAG statuses
-- **Read-Only**: No ability to modify or trigger DAGs (security by design)
-- **Performance-Optimized**: Caching layer prevents excessive API calls to Airflow
+### Advanced Capabilities
+- **Interactive Dashboard**: Modern React-based UI with real-time updates and responsive design
+- **Historical Trends**: Track performance trends and identify patterns over time
+- **Detailed Logging**: Comprehensive failure logs with task-level error details
+- **REST API**: Full REST API for integration with monitoring tools and automation systems
+- **Robust Error Handling**: Comprehensive null-safety and defensive programming
 
-## Architecture
+## 🏗️ Architecture
 
-```
-┌─────────────────┐
-│   Frontend      │
-│   (React)       │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐      ┌──────────────────┐
-│   Backend       │─────▶│  Airflow REST    │
-│   (FastAPI)     │      │  API             │
-│   + Cache       │◀─────│                  │
-└─────────────────┘      └──────────────────┘
-```
+The dashboard consists of four main components:
 
-## Project Structure
+1. **Frontend**: React 18 + Vite application with Tailwind CSS for modern, responsive UI
+2. **Backend**: FastAPI-based Python service with async processing and background tasks
+3. **AI Service**: Azure OpenAI integration for intelligent failure analysis and recommendations
+4. **Airflow Integration**: Direct integration with Airflow REST API for real-time data access
 
-```
-airflow-health-dashboard/
-├── backend/              # FastAPI backend application
-│   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py      # FastAPI app entry point
-│   │   ├── api/         # API endpoints
-│   │   ├── services/    # Business logic
-│   │   ├── models/      # Data models
-│   │   └── utils/       # Utilities and helpers
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/            # React frontend application
-│   ├── src/
-│   │   ├── components/  # React components
-│   │   ├── services/    # API client
-│   │   └── App.js
-│   ├── package.json
-│   └── Dockerfile
-├── config/              # Configuration files
-│   └── .env.example
-├── docker-compose.yml   # Multi-container setup
-└── README.md
-```
+### Key Technical Improvements
+- ✅ **Null-Safety**: Comprehensive null pointer error prevention with defensive programming
+- ✅ **Background Processing**: Async task management with lifespan event handling  
+- ✅ **Caching System**: In-memory caching with automatic refresh for performance
+- ✅ **Error Recovery**: Robust error handling with detailed logging and graceful degradation
 
-## Requirements
+## 🚀 Quick Start
 
-### Backend
-- Python 3.9+
-- FastAPI
-- httpx (for Airflow API calls)
-- Redis (for caching)
+### Prerequisites
 
-### Frontend
-- Node.js 18+
-- React 18
-- Tailwind CSS
+- Docker and Docker Compose (recommended)
+- Node.js 18+ (for local development)
+- Python 3.8+ with virtual environment support
+- Access to Airflow REST API
+- Azure OpenAI API key (optional, for AI features)
 
-## Quick Start
-
-### 1. Clone and Configure
+### Using Docker Compose (Recommended)
 
 ```bash
-cd /Users/harikrishnan.r/Downloads/airflow-health-dashboard
-cp config/.env.example .env
-# Edit .env with your Airflow credentials
+# Clone the repository
+git clone https://github.com/hari87gxs/airflowhealthdashboard.git
+cd airflowhealthdashboard
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your Airflow URL and credentials
+
+# Start the services
+docker-compose up -d
+
+# Access the dashboard
+open http://localhost:3000
 ```
 
-### 2. Run with Docker Compose
+### Local Development Setup
+
+#### Backend Setup
 
 ```bash
-docker-compose up --build
-```
-
-The dashboard will be available at:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-
-### 3. Manual Setup (Development)
-
-#### Backend
-```bash
+# Navigate to backend directory
 cd backend
-python -m venv venv
-source venv/bin/activate
+
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+
+# Set up environment variables
+cp config/.env.example .env
+# Edit .env with your configuration
+
+# Start the backend server
+PYTHONPATH=/path/to/backend python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-#### Frontend
+#### Frontend Setup
+
 ```bash
+# Navigate to frontend directory
 cd frontend
+
+# Install dependencies
 npm install
-npm start
+
+# Start the development server
+npm run dev
+
+# Access the application at http://localhost:3000
 ```
 
-## Configuration
+## 📊 API Endpoints
 
-Create a `.env` file in the root directory:
+### Core Endpoints
 
-```env
-# Airflow Configuration
-AIRFLOW_BASE_URL=http://your-airflow-instance:8080
+- `GET /api/v1/domains?time_range=24h` - Get DAG health metrics by domain
+- `GET /api/v1/analysis/failures?time_range=24h` - Get comprehensive failure analysis with AI insights
+- `GET /api/v1/domains/{domain}/dags?time_range=24h` - Get detailed DAG information for a specific domain
+
+### Sample API Response
+
+```json
+{
+  "llm_analysis": {
+    "summary": "System analysis showing 94% success rate with focused issues in data quality and configuration",
+    "categories": [
+      {
+        "name": "Data Quality Issues",
+        "count": 6,
+        "dag_ids": ["ingestion__lending", "dm__daily_extraction"],
+        "description": "Failures caused by missing or invalid data during processing"
+      }
+    ],
+    "action_items": [
+      {
+        "priority": "high",
+        "title": "Investigate data quality in ingestion pipelines",
+        "description": "Audit upstream data sources and implement validation checks"
+      }
+    ]
+  },
+  "total_failed_dags": 17,
+  "total_analyzed_dags": 294
+}
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+#### Backend Configuration (.env)
+```bash
+AIRFLOW_BASE_URL=https://your-airflow-instance.com
 AIRFLOW_USERNAME=your_username
 AIRFLOW_PASSWORD=your_password
-# Or use API token
-AIRFLOW_API_TOKEN=your_api_token
+
+# Azure OpenAI (optional)
+AZURE_OPENAI_API_KEY=your_api_key
+AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com
+AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
 
 # Cache Configuration
-CACHE_TTL_SECONDS=120
-REFRESH_INTERVAL_SECONDS=300
-
-# Backend Configuration
-BACKEND_HOST=0.0.0.0
-BACKEND_PORT=8000
-
-# Frontend Configuration
-REACT_APP_API_URL=http://localhost:8000
+CACHE_TTL=120
+REFRESH_INTERVAL=300
 ```
 
-## Security Notes
+#### Frontend Configuration
+The frontend automatically connects to the backend API at `http://localhost:8000`.
 
-- **Read-Only Access**: The dashboard only makes GET requests to the Airflow API
-- **Credential Management**: Store API credentials in environment variables or secrets manager
-- **Network Access**: Deploy behind company firewall or SSO
-- **No Direct DB Access**: Uses only Airflow REST API (no direct metastore queries)
+## 🛠️ Advanced Features
 
-## API Endpoints
+### AI-Powered Insights
+- **Pattern Recognition**: Automatically identifies common failure patterns
+- **Categorization**: Groups failures by type (Data Quality, Configuration, Infrastructure)
+- **Recommendations**: Provides prioritized action items with specific DAG references
+- **Trend Analysis**: Identifies recurring issues and suggests preventive measures
 
-### Backend API
+### Background Processing
+- **Automatic Refresh**: Background tasks update analysis every 5 minutes
+- **Performance Optimization**: Cached results provide instant dashboard loading
+- **Graceful Degradation**: System continues operation even if AI service is unavailable
 
-- `GET /api/v1/health` - Health check
-- `GET /api/v1/domains` - List all domain tags with aggregated health
-- `GET /api/v1/domains/{tag}` - Get DAG details for a specific domain
-- `GET /api/v1/domains/{tag}/dags/{dag_id}/runs` - Get runs for a specific DAG
+### Robust Error Handling
+- **Null-Safety**: Comprehensive protection against data inconsistencies
+- **Defensive Programming**: Handles missing or malformed Airflow API responses
+- **Detailed Logging**: Full error tracebacks for debugging and monitoring
 
-### Query Parameters
+## 📈 Monitoring & Health Metrics
 
-- `time_range`: `24h`, `7d`, `30d` (default: `24h`)
+The dashboard provides comprehensive monitoring across multiple dimensions:
 
-## Development
+### Domain Health Scores
+- **Finance Domain**: ERP, lending, investment workflows
+- **Ecosystem Domain**: Partner integrations (Grab, Singtel)
+- **Marketing Domain**: Campaign and email automation
+- **Regulatory Reporting**: Compliance and audit workflows
+- **Credit Risk**: Risk assessment and validation
+- **AML**: Anti-money laundering processes
 
-### Running Tests
+### Key Performance Indicators
+- **Overall Success Rate**: System-wide success percentage
+- **Domain Health Scores**: Per-domain health metrics
+- **Failure Rate Trends**: Historical failure pattern analysis
+- **Recovery Time**: Average time to resolve failures
 
+## 🔍 Troubleshooting
+
+### Common Issues
+
+#### Frontend Not Loading
 ```bash
-# Backend tests
-cd backend
-pytest
+# Check if both servers are running
+lsof -i :3000  # Frontend
+lsof -i :8000  # Backend
 
-# Frontend tests
-cd frontend
-npm test
+# Restart frontend
+cd frontend && npm run dev
 ```
 
-### Code Style
-
+#### Backend API Errors
 ```bash
-# Backend
-black app/
-flake8 app/
+# Check backend logs
+docker-compose logs backend
 
-# Frontend
-npm run lint
+# Verify Airflow connectivity
+curl -u username:password https://your-airflow-instance.com/api/v1/health
 ```
 
-## Success Metrics
+#### Analysis Not Updating
+- Verify Azure OpenAI credentials in .env
+- Check background task logs in backend console
+- Ensure Airflow API is accessible and responsive
 
-- **MTTD**: Reduction in time to detect system-wide failures
-- **Load Time**: Main dashboard loads in < 5 seconds
-- **Stakeholder Adoption**: Non-technical users can identify issues within 30 seconds
-- **System Stability**: No negative impact on Airflow performance over 30 days
+## 🤝 Contributing
 
-## Roadmap
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-- [ ] Basic dashboard with domain aggregation (v1.0)
-- [ ] Drill-down to DAG level (v1.0)
-- [ ] Time range filtering (v1.0)
-- [ ] Enhanced caching strategy (v1.1)
-- [ ] SSO integration (v1.2)
-- [ ] Custom domain grouping (v2.0)
+## 📄 License
 
-## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-Internal use only - [Your Company Name]
+## 🙏 Acknowledgments
 
-## Support
+- Apache Airflow team for the excellent workflow management platform
+- Azure OpenAI for providing intelligent analysis capabilities
+- React and FastAPI communities for robust frameworks
 
-For issues or questions, contact the Data Platform team.
+## 📚 Documentation
+
+For detailed documentation, see:
+- [Project Summary](PROJECT_SUMMARY.md)
+- [Architecture Guide](ARCHITECTURE.md)
+- [API Documentation](API.md)
+- [Getting Started Guide](GETTING_STARTED.md)
+- [Deployment Guide](DEPLOYMENT.md)
