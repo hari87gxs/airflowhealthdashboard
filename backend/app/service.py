@@ -127,20 +127,31 @@ class HealthService:
                         elif isinstance(tag, dict) and 'name' in tag:
                             tag_names.append(tag['name'])
                 
-                # Check if this DAG has the domain tag
-                domain_tag_to_find = f"domain:{domain_tag}"
-                if domain_tag_to_find in tag_names:
-                    domain_dags.append(dag)
+                # Special handling for "untagged" domain
+                if domain_tag == "untagged":
+                    # Check if this DAG has NO domain tags
+                    has_domain_tag = any(tag_name.startswith('domain:') for tag_name in tag_names)
+                    if not has_domain_tag:
+                        domain_dags.append(dag)
+                else:
+                    # Check if this DAG has the specific domain tag
+                    domain_tag_to_find = f"domain:{domain_tag}"
+                    if domain_tag_to_find in tag_names:
+                        domain_dags.append(dag)
             
             logger.info(f"Found {len(domain_dags)} DAGs for domain {domain_tag}")
             
             if not domain_dags:
                 raise ValueError(f"No DAGs found for domain tag: {domain_tag}")
             
-            # Build detailed DAG summaries
+            # Batch fetch all DAG runs at once for efficiency
+            dag_ids = [dag["dag_id"] for dag in domain_dags]
+            all_runs = await self.airflow_client.get_all_dag_runs_for_dags(dag_ids, time_range)
+            
+            # Build detailed DAG summaries using the pre-fetched runs
             dag_summaries = []
             for dag in domain_dags:
-                dag_summary = await self._build_dag_summary(dag, time_range)
+                dag_summary = self._build_dag_summary_from_runs(dag, all_runs.get(dag["dag_id"], []), time_range)
                 dag_summaries.append(dag_summary)
             
             # Sort: failures first, then by DAG ID
@@ -323,6 +334,18 @@ class HealthService:
         
         dag_id = dag["dag_id"]
         runs = await self.airflow_client.get_dag_runs(dag_id, time_range)
+        
+        return self._build_dag_summary_from_runs(dag, runs, time_range)
+    
+    def _build_dag_summary_from_runs(
+        self, 
+        dag: Dict[str, Any], 
+        runs: List[Dict[str, Any]],
+        time_range: TimeRange
+    ) -> DagHealthSummary:
+        """Build health summary for a single DAG from pre-fetched runs (synchronous)."""
+        
+        dag_id = dag["dag_id"]
         
         failed_count = 0
         success_count = 0

@@ -67,6 +67,7 @@ export const api = {
   async getDomainDetail(domainTag, timeRange = '24h') {
     const response = await apiClient.get(`/domains/${domainTag}`, {
       params: { time_range: timeRange },
+      timeout: 120000, // 120 second timeout for large domains
     });
     return response.data;
   },
