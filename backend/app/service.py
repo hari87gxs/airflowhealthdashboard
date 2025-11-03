@@ -43,7 +43,7 @@ class HealthService:
             if cached_data:
                 logger.debug(f"Returning cached dashboard data for {time_range.value}")
                 # Update the last_updated timestamp to reflect cache retrieval time
-                cached_data['last_updated'] = datetime.utcnow().isoformat()
+                cached_data["last_updated"] = datetime.utcnow().isoformat()
                 return DashboardResponse(**cached_data)
 
         logger.info(f"Building dashboard data for time range: {time_range.value}")
@@ -99,7 +99,10 @@ class HealthService:
             raise
 
     async def get_domain_detail(
-        self, domain_tag: str, time_range: TimeRange = TimeRange.HOURS_24, force_refresh: bool = False
+        self,
+        domain_tag: str,
+        time_range: TimeRange = TimeRange.HOURS_24,
+        force_refresh: bool = False,
     ) -> DomainDetailResponse:
         """Get detailed information for a specific domain."""
 
@@ -112,7 +115,7 @@ class HealthService:
             if cached_data:
                 logger.debug(f"Returning cached domain detail for {domain_tag}")
                 # Update the last_updated timestamp to reflect cache retrieval time
-                cached_data['last_updated'] = datetime.utcnow().isoformat()
+                cached_data["last_updated"] = datetime.utcnow().isoformat()
                 return DomainDetailResponse(**cached_data)
 
         logger.info(
