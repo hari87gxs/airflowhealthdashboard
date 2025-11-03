@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -18,23 +18,37 @@ function DomainDetail() {
   const [error, setError] = useState(null);
   const [expandedDag, setExpandedDag] = useState(null);
   const [dagRuns, setDagRuns] = useState({});
+  const [isAirflowAvailable, setIsAirflowAvailable] = useState(true);
+  const [isForceRefreshing, setIsForceRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState(null);
 
-  useEffect(() => {
-    fetchDomainDetail();
-  }, [domainTag, timeRange]);
-
-  const fetchDomainDetail = async () => {
+  const fetchDomainDetail = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getDomainDetail(domainTag, timeRange);
+      if (forceRefresh) {
+        setIsForceRefreshing(true);
+      }
+      const data = await api.getDomainDetail(domainTag, timeRange, forceRefresh);
       setDomainData(data);
+      setIsAirflowAvailable(true);
+      setLastRefreshTime(new Date());
     } catch (err) {
       setError(err.message);
+      setIsAirflowAvailable(false);
       console.error('Failed to fetch domain detail:', err);
     } finally {
       setLoading(false);
+      setIsForceRefreshing(false);
     }
+  }, [domainTag, timeRange]);
+
+  useEffect(() => {
+    fetchDomainDetail();
+  }, [fetchDomainDetail]);
+
+  const handleRefresh = () => {
+    fetchDomainDetail(true); // Force refresh from Airflow
   };
 
   const fetchDagRuns = async (dagId) => {
@@ -103,6 +117,24 @@ function DomainDetail() {
 
   return (
     <div className="space-y-6">
+      {/* Airflow Unavailable Warning */}
+      {!isAirflowAvailable && domainData && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">
+                <strong className="font-medium">Airflow is currently unavailable.</strong> Showing cached data. Data will automatically refresh when Airflow is back online.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
@@ -112,17 +144,34 @@ function DomainDetail() {
           ← Back to Dashboard
         </button>
 
-        <select
-          value={timeRange}
-          onChange={(e) => setTimeRange(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {TIME_RANGES.map((range) => (
-            <option key={range.value} value={range.value}>
-              {range.label}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center space-x-4">
+          {lastRefreshTime && (
+            <span className="text-sm text-gray-600">
+              Last refreshed: {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
+            </span>
+          )}
+          
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {TIME_RANGES.map((range) => (
+              <option key={range.value} value={range.value}>
+                {range.label}
+              </option>
+            ))}
+          </select>
+          
+          <button
+            onClick={handleRefresh}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            title="Force refresh from Airflow (may take up to 2 minutes)"
+          >
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {/* Domain Summary */}

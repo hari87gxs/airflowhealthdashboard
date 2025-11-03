@@ -47,6 +47,10 @@ async def get_domains(
     time_range: TimeRange = Query(
         TimeRange.HOURS_24,
         description="Time range for filtering DAG runs"
+    ),
+    force_refresh: bool = Query(
+        False,
+        description="Force refresh from Airflow, bypassing cache"
     )
 ):
     """
@@ -56,8 +60,8 @@ async def get_domains(
     Returns aggregated health statistics for each business domain/tag.
     """
     try:
-        logger.info(f"GET /domains - time_range: {time_range.value}")
-        return await health_service.get_dashboard_data(time_range)
+        logger.info(f"GET /domains - time_range: {time_range.value}, force_refresh: {force_refresh}")
+        return await health_service.get_dashboard_data(time_range, force_refresh=force_refresh)
     except Exception as e:
         logger.error(f"Error fetching domains: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch domain data: {str(e)}")
@@ -69,6 +73,10 @@ async def get_domain_detail(
     time_range: TimeRange = Query(
         TimeRange.HOURS_24,
         description="Time range for filtering DAG runs"
+    ),
+    force_refresh: bool = Query(
+        False,
+        description="Force refresh from Airflow, bypassing cache"
     )
 ):
     """
@@ -79,8 +87,8 @@ async def get_domain_detail(
     - List of all DAGs in the domain with their health metrics
     """
     try:
-        logger.info(f"GET /domains/{domain_tag} - time_range: {time_range.value}")
-        return await health_service.get_domain_detail(domain_tag, time_range)
+        logger.info(f"GET /domains/{domain_tag} - time_range: {time_range.value}, force_refresh: {force_refresh}")
+        return await health_service.get_domain_detail(domain_tag, time_range, force_refresh=force_refresh)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

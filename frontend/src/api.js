@@ -51,10 +51,15 @@ export const api = {
   /**
    * Get all domain summaries
    * @param {string} timeRange - '24h', '7d', or '30d'
+   * @param {boolean} forceRefresh - Force refresh from Airflow, bypassing cache
    */
-  async getDomains(timeRange = '24h') {
+  async getDomains(timeRange = '24h', forceRefresh = false) {
     const response = await apiClient.get('/domains', {
-      params: { time_range: timeRange },
+      params: { 
+        time_range: timeRange,
+        force_refresh: forceRefresh
+      },
+      timeout: forceRefresh ? 120000 : 30000, // 120s for force refresh, 30s for cached
     });
     return response.data;
   },
@@ -63,10 +68,14 @@ export const api = {
    * Get detailed information for a specific domain
    * @param {string} domainTag - The domain tag
    * @param {string} timeRange - '24h', '7d', or '30d'
+   * @param {boolean} forceRefresh - Force refresh from Airflow, bypassing cache
    */
-  async getDomainDetail(domainTag, timeRange = '24h') {
+  async getDomainDetail(domainTag, timeRange = '24h', forceRefresh = false) {
     const response = await apiClient.get(`/domains/${domainTag}`, {
-      params: { time_range: timeRange },
+      params: { 
+        time_range: timeRange,
+        force_refresh: forceRefresh
+      },
       timeout: 120000, // 120 second timeout for large domains
     });
     return response.data;

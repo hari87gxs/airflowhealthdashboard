@@ -21,6 +21,15 @@ services:
       - BACKEND_PORT=8000
       - CORS_ORIGINS=["http://localhost:3000", "http://localhost"]
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # LLM Configuration
+      - LLM_ENABLED=${LLM_ENABLED:-true}
+      - LLM_PROVIDER=${LLM_PROVIDER:-azure_openai}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o}
+      # Azure OpenAI Configuration
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-08-01-preview}
+      - AZURE_OPENAI_DEPLOYMENT_NAME=${AZURE_OPENAI_DEPLOYMENT_NAME}
     depends_on:
       - redis
     restart: unless-stopped

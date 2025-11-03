@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { formatDistanceToNow } from 'date-fns';
@@ -16,29 +16,37 @@ function Dashboard() {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [isAirflowAvailable, setIsAirflowAvailable] = useState(true);
+  const [isForceRefreshing, setIsForceRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState(null);
 
-  useEffect(() => {
-    fetchDashboard();
-    
-    if (autoRefresh) {
-      const interval = setInterval(fetchDashboard, 120000); // Refresh every 2 minutes
-      return () => clearInterval(interval);
-    }
-  }, [timeRange, autoRefresh]);
-
-  const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getDomains(timeRange);
+      if (forceRefresh) {
+        setIsForceRefreshing(true);
+      }
+      const data = await api.getDomains(timeRange, forceRefresh);
       setDashboardData(data);
+      setIsAirflowAvailable(true); // Successfully fetched from Airflow
+      setLastRefreshTime(new Date());
     } catch (err) {
       setError(err.message);
+      setIsAirflowAvailable(false); // Airflow is unavailable
       console.error('Failed to fetch dashboard:', err);
     } finally {
       setLoading(false);
+      setIsForceRefreshing(false);
     }
+  }, [timeRange]);
+
+  useEffect(() => {
+    fetchDashboard();
+  }, [timeRange, fetchDashboard]);
+
+  const handleRefresh = () => {
+    fetchDashboard(true); // Force refresh from Airflow
   };
 
   const handleDomainClick = (domainTag) => {
@@ -75,8 +83,11 @@ function Dashboard() {
 
   if (loading && !dashboardData) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex flex-col justify-center items-center h-64 space-y-4">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        {isForceRefreshing && (
+          <p className="text-sm text-gray-600">Fetching fresh data from Airflow...</p>
+        )}
       </div>
     );
   }
@@ -96,19 +107,13 @@ function Dashboard() {
     );
   }
 
-  // Check if data is stale (more than 5 minutes old)
-  const isDataStale = () => {
-    if (!dashboardData?.last_updated) return false;
-    const lastUpdate = new Date(dashboardData.last_updated);
-    const now = new Date();
-    const diffMinutes = (now - lastUpdate) / 1000 / 60;
-    return diffMinutes > 5;
-  };
+  // Show warning if Airflow is unavailable
+  const showAirflowWarning = !isAirflowAvailable && dashboardData;
 
   return (
     <div className="space-y-6">
-      {/* Stale Data Warning */}
-      {isDataStale() && (
+      {/* Airflow Unavailable Warning */}
+      {showAirflowWarning && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
@@ -118,7 +123,7 @@ function Dashboard() {
             </div>
             <div className="ml-3">
               <p className="text-sm text-yellow-700">
-                <strong className="font-medium">Airflow is currently unavailable.</strong> Showing cached data from {formatDistanceToNow(new Date(dashboardData.last_updated), { addSuffix: true })}. Data will automatically refresh when Airflow is back online.
+                <strong className="font-medium">Airflow is currently unavailable.</strong> Showing cached data. Data will automatically refresh when Airflow is back online.
               </p>
             </div>
           </div>
@@ -144,31 +149,34 @@ function Dashboard() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="rounded text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Auto-refresh</span>
-            </label>
+            {lastRefreshTime && (
+              <span className="text-sm text-gray-600">
+                Last refreshed: {formatDistanceToNow(lastRefreshTime, { addSuffix: true })}
+              </span>
+            )}
             
             <button
-              onClick={fetchDashboard}
+              onClick={handleRefresh}
               disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
+              title="Force refresh from Airflow (may take up to 2 minutes)"
             >
-              {loading ? 'Refreshing...' : 'Refresh'}
+              {isForceRefreshing ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Refreshing...</span>
+                </>
+              ) : loading ? (
+                'Loading...'
+              ) : (
+                'Refresh'
+              )}
             </button>
           </div>
         </div>
-
-        {dashboardData?.last_updated && (
-          <p className="text-xs text-gray-500 mt-2">
-            Last updated: {formatDistanceToNow(new Date(dashboardData.last_updated), { addSuffix: true })}
-          </p>
-        )}
       </div>
 
       {/* Summary Stats */}
