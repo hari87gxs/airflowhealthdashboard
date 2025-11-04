@@ -7,6 +7,9 @@ pydantic-settings==2.1.0
 # HTTP Client for Airflow API
 httpx==0.25.2
 
+# AWS SDK for MWAA Integration
+boto3==1.35.0
+
 # LLM Integration for Failure Analysis
 openai==1.54.0
 
