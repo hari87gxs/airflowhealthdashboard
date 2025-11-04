@@ -1,0 +1,50 @@
+{{- if .Values.configMap.create }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "airflow-health-dashboard.fullname" . }}-config
+  labels:
+    {{- include "airflow-health-dashboard.labels" . | nindent 4 }}
+data:
+  AIRFLOW_BASE_URL: {{ .Values.backend.airflow.baseUrl | quote }}
+  CACHE_TTL_SECONDS: {{ .Values.backend.cache.ttlSeconds | quote }}
+  REFRESH_INTERVAL_SECONDS: {{ .Values.backend.cache.refreshIntervalSeconds | quote }}
+  BACKEND_HOST: "0.0.0.0"
+  BACKEND_PORT: "8000"
+  LOG_LEVEL: {{ .Values.backend.logLevel | quote }}
+  
+  # LLM Configuration
+  LLM_ENABLED: {{ .Values.backend.llm.enabled | quote }}
+  LLM_PROVIDER: {{ .Values.backend.llm.provider | quote }}
+  LLM_MODEL: {{ .Values.backend.llm.model | quote }}
+  
+  {{- if eq .Values.backend.llm.provider "azure_openai" }}
+  AZURE_OPENAI_API_VERSION: {{ .Values.backend.llm.azureOpenAI.apiVersion | quote }}
+  {{- if .Values.backend.llm.azureOpenAI.endpoint }}
+  AZURE_OPENAI_ENDPOINT: {{ .Values.backend.llm.azureOpenAI.endpoint | quote }}
+  {{- end }}
+  {{- if .Values.backend.llm.azureOpenAI.deploymentName }}
+  AZURE_OPENAI_DEPLOYMENT_NAME: {{ .Values.backend.llm.azureOpenAI.deploymentName | quote }}
+  {{- end }}
+  {{- end }}
+  
+  # Slack Configuration
+  SLACK_ENABLED: {{ .Values.backend.slack.enabled | quote }}
+  
+  # Scheduled Reports
+  SCHEDULED_REPORTS_ENABLED: {{ .Values.backend.scheduledReports.enabled | quote }}
+  MORNING_REPORT_HOUR: {{ .Values.backend.scheduledReports.morningReportHour | quote }}
+  MORNING_REPORT_MINUTE: {{ .Values.backend.scheduledReports.morningReportMinute | quote }}
+  EVENING_REPORT_HOUR: {{ .Values.backend.scheduledReports.eveningReportHour | quote }}
+  EVENING_REPORT_MINUTE: {{ .Values.backend.scheduledReports.eveningReportMinute | quote }}
+  DASHBOARD_URL: {{ .Values.backend.scheduledReports.dashboardUrl | quote }}
+  
+  # CORS Origins
+  CORS_ORIGINS: {{ .Values.backend.corsOrigins | toJson | quote }}
+  
+  # Redis URL
+  {{- $redisUrl := include "airflow-health-dashboard.redisUrl" . }}
+  {{- if $redisUrl }}
+  REDIS_URL: {{ $redisUrl | quote }}
+  {{- end }}
+{{- end }}

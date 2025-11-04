@@ -1,0 +1,42 @@
+# .helmignore is used to specify files and patterns that should be ignored when packaging the chart
+
+# macOS files
+.DS_Store
+
+# Backup files
+*.bak
+*.tmp
+*~
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD files
+.gitlab-ci.yml
+.github/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Documentation (keep README.md)
+docs/
+*.md
+!README.md
+
+# Test files
+tests/
+test/
+*.test.yaml
+
+# Example files
+examples/
+*.example
+
+# Development files
+values-dev.yaml
+values-local.yaml

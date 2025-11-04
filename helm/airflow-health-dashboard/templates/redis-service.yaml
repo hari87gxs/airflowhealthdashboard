@@ -1,0 +1,17 @@
+{{- if and .Values.redis.enabled (not .Values.redis.external.enabled) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "airflow-health-dashboard.fullname" . }}-redis
+  labels:
+    {{- include "airflow-health-dashboard.redis.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.redis.service.type }}
+  ports:
+  - port: {{ .Values.redis.service.port }}
+    targetPort: redis
+    protocol: TCP
+    name: redis
+  selector:
+    {{- include "airflow-health-dashboard.redis.selectorLabels" . | nindent 4 }}
+{{- end }}

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: airflow-health-dashboard
+description: A Helm chart for Airflow Health Dashboard - monitoring and analysis tool
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - airflow
+  - monitoring
+  - dashboard
+  - health-check
+maintainers:
+  - name: Airflow Health Dashboard Team
+home: https://github.com/hari87gxs/airflowhealthdashboard
+sources:
+  - https://github.com/hari87gxs/airflowhealthdashboard

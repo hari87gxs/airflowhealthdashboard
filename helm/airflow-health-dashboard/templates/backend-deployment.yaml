@@ -1,0 +1,109 @@
+{{- if .Values.backend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "airflow-health-dashboard.fullname" . }}-backend
+  labels:
+    {{- include "airflow-health-dashboard.backend.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.backend.autoscaling.enabled }}
+  replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "airflow-health-dashboard.backend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.backend.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "airflow-health-dashboard.backend.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "airflow-health-dashboard.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.backend.podSecurityContext | nindent 8 }}
+      containers:
+      - name: backend
+        securityContext:
+          {{- toYaml .Values.backend.securityContext | nindent 10 }}
+        image: {{ include "airflow-health-dashboard.backend.image" . }}
+        imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.backend.service.targetPort }}
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: {{ include "airflow-health-dashboard.fullname" . }}-config
+        env:
+        {{- if .Values.backend.airflow.authMethod }}
+        {{- if eq .Values.backend.airflow.authMethod "basic" }}
+        - name: AIRFLOW_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "airflow-health-dashboard.fullname" . }}-secrets
+              key: airflow-username
+        - name: AIRFLOW_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "airflow-health-dashboard.fullname" . }}-secrets
+              key: airflow-password
+        {{- else if eq .Values.backend.airflow.authMethod "token" }}
+        - name: AIRFLOW_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "airflow-health-dashboard.fullname" . }}-secrets
+              key: airflow-api-token
+        {{- end }}
+        {{- end }}
+        {{- if .Values.backend.llm.enabled }}
+        - name: LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "airflow-health-dashboard.fullname" . }}-secrets
+              key: llm-api-key
+        {{- end }}
+        {{- if .Values.backend.slack.enabled }}
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "airflow-health-dashboard.fullname" . }}-secrets
+              key: slack-webhook-url
+        {{- end }}
+        {{- if .Values.backend.livenessProbe.enabled }}
+        livenessProbe:
+          {{- toYaml .Values.backend.livenessProbe | nindent 10 }}
+        {{- end }}
+        {{- if .Values.backend.readinessProbe.enabled }}
+        readinessProbe:
+          {{- toYaml .Values.backend.readinessProbe | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.backend.resources | nindent 10 }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      {{- with .Values.backend.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

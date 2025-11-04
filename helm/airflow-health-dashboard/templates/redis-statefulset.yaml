@@ -1,0 +1,71 @@
+{{- if and .Values.redis.enabled (not .Values.redis.external.enabled) }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "airflow-health-dashboard.fullname" . }}-redis
+  labels:
+    {{- include "airflow-health-dashboard.redis.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "airflow-health-dashboard.fullname" . }}-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "airflow-health-dashboard.redis.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "airflow-health-dashboard.redis.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "airflow-health-dashboard.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.redis.podSecurityContext | nindent 8 }}
+      containers:
+      - name: redis
+        securityContext:
+          {{- toYaml .Values.redis.securityContext | nindent 10 }}
+        image: {{ include "airflow-health-dashboard.redis.image" . }}
+        imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+        command:
+        - redis-server
+        - --appendonly
+        - {{ .Values.redis.appendonly | quote }}
+        ports:
+        - name: redis
+          containerPort: 6379
+          protocol: TCP
+        livenessProbe:
+          tcpSocket:
+            port: redis
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.redis.resources | nindent 10 }}
+        volumeMounts:
+        - name: data
+          mountPath: /data
+  {{- if .Values.redis.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - {{ .Values.redis.persistence.accessMode }}
+      {{- if .Values.redis.persistence.storageClass }}
+      storageClassName: {{ .Values.redis.persistence.storageClass }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.redis.persistence.size }}
+  {{- else }}
+      volumes:
+      - name: data
+        emptyDir: {}
+  {{- end }}
+{{- end }}
