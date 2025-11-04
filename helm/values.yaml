@@ -50,6 +50,13 @@ backend:
     # API token (alternative to username/password)
     apiToken: ""
   
+  # HashiCorp Vault configuration
+  # When enabled, secrets will be injected from Vault instead of Kubernetes secrets
+  vault:
+    enabled: false
+    role: "airflow-health-dashboard-role"
+    path: "data-dev/app/data-dev-de/platform-apps/airflow-health-dashboard"
+  
   # Cache configuration
   cache:
     ttlSeconds: 120
@@ -149,7 +156,7 @@ frontend:
   service:
     type: ClusterIP
     port: 80
-    targetPort: 80
+    targetPort: 8080
     annotations: {}
   
   resources:

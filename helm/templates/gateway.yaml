@@ -1,0 +1,28 @@
+{{- if .Values.gateway }}
+{{- if .Values.gateway.hosts }}
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: {{ .Release.Name }}-gateway
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: {{ .Release.Name }}
+    tags.datadoghq.com/service: {{ .Release.Name }}
+    {{- if .Values.imageTag }}
+    app.kubernetes.io/version: "{{ .Values.imageTag }}"
+    {{- end }}
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - hosts:
+      {{- range .Values.gateway.hosts }}
+      - {{ . | quote }}
+      {{- end }} 
+      port:
+        number: 443
+        name: https
+        protocol: HTTP
+{{- end }}
+{{- end }}

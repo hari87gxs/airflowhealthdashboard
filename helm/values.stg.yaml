@@ -1,0 +1,163 @@
+# Development/Local Values Example
+# For local development and testing
+
+gateway:
+  enabled: true
+  annotations: {}
+  hosts:
+    - "*.ap-southeast-1.elb.amazonaws.com"
+    - "datatech.sgbank.st"
+  tls: true
+
+# ServiceAccount with IAM role for Vault access
+serviceAccount:
+  create: false # No need to create service account for stg
+
+backend:
+  replicaCount: 1
+  
+  image:
+    repository: 851255665500.dkr.ecr.ap-southeast-1.amazonaws.com/data-cx-buddy
+    tag: "airflowhealthdashboard-backend-v.0.0.2"
+    pullPolicy: Always
+  
+  airflow:
+    # Use internal Kubernetes service DNS for Airflow
+    baseUrl: "http://airflow-webserver.airflow-stg-app-01.svc.cluster.local:8080"
+    authMethod: "basic"
+    username: "admin"
+    password: "admin"
+  
+  llm:
+    enabled: false
+    provider: "azure_openai"
+    model: "gpt-4o"
+    azureOpenAI:
+      endpoint: "https://gxs-dev-gpt-sg-001.openai.azure.com"
+      apiVersion: "2024-10-21"
+      deploymentName: "gpt-4o-2024-08-06"
+  
+  slack:
+    enabled: false  # Disable for local dev
+  
+  scheduledReports:
+    enabled: false  # Disable for local dev
+  
+  corsOrigins:
+    - "http://localhost:3000"
+    - "http://localhost:8080"
+    - "https://datatech.sgbank.st"
+  
+  logLevel: "DEBUG"
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  autoscaling:
+    enabled: false
+  
+  # Vault annotations for pod
+  vault:
+    enabled: false
+    
+  # podAnnotations:
+  #   vault.hashicorp.com/agent-inject: "true"
+  #   vault.hashicorp.com/role: "airflow-health-dashboard-role"
+  #   vault.hashicorp.com/agent-cache-enable: "true"
+  #   vault.hashicorp.com/agent-init-first: "true"
+  #   vault.hashicorp.com/agent-pre-populate-only: "true"
+    
+  #   vault.hashicorp.com/agent-inject-secret-SECRETS: "data-dev/app/data-dev-de/platform-apps/airflow-health-dashboard"
+  #   vault.hashicorp.com/agent-inject-file-SECRETS: "secrets"
+  #   vault.hashicorp.com/agent-inject-template-SECRETS: |
+  #     {{- with secret "data-dev/app/data-dev-de/platform-apps/airflow-health-dashboard" -}}
+  #     export AIRFLOW_USERNAME='{{ .Data.data.AIRFLOW_USERNAME }}'
+  #     export AIRFLOW_PASSWORD='{{ .Data.data.AIRFLOW_PASSWORD }}'
+  #     export LLM_API_KEY='{{ .Data.data.LLM_API_KEY }}'
+  #     {{- if .Data.data.SLACK_WEBHOOK_URL }}
+  #     export SLACK_WEBHOOK_URL='{{ .Data.data.SLACK_WEBHOOK_URL }}'
+  #     {{- end }}
+  #     {{- end -}}
+
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /api/v1/health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /api/v1/health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+frontend:
+  replicaCount: 1
+  
+  image:
+    repository: 851255665500.dkr.ecr.ap-southeast-1.amazonaws.com/data-cx-buddy
+    tag: "airflowhealthdashboard-frontend-v.0.0.5"
+    pullPolicy: Always
+
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+    annotations: {}
+
+  apiUrl: "/airflow-health-dashboard/api/v1"
+  airflowUrl: "https://airflow.sgbank.st"
+  
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  autoscaling:
+    enabled: false
+
+# Use internal Redis for development
+redis:
+  enabled: true
+  external:
+    enabled: false
+  
+  image:
+    repository: 851255665500.dkr.ecr.ap-southeast-1.amazonaws.com/db-central-repo
+    tag: "redis-8.2-bookworm"
+    pullPolicy: IfNotPresent
+  
+  persistence:
+    enabled: false  # Use emptyDir for local dev
+
+# Disable ingress for local development (use port-forward)
+ingress:
+  enabled: false
+
+# Disable network policies for easier local development
+networkPolicy:
+  enabled: false
+
+# Disable pod disruption budgets
+podDisruptionBudget:
+  enabled: false
+
+# Secrets - disabled when using Vault
+secrets:
+  create: false

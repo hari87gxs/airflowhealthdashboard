@@ -1,0 +1,19 @@
+{{- if .Values.backend.enabled }}
+{{- if .Values.backend.airflow.createExternalService }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-external
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "airflow-health-dashboard.labels" . | nindent 4 }}
+spec:
+  type: ExternalName
+  externalName: {{ .Values.backend.airflow.externalServiceName | quote }}
+  ports:
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+{{- end }}
+{{- end }}

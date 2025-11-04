@@ -1,0 +1,71 @@
+{{- if .Values.gateway }}
+{{- if .Values.gateway.hosts }}
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ .Release.Name }}-virtualservice
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: {{ .Release.Name }}
+    tags.datadoghq.com/service: {{ .Release.Name }}
+    {{- if .Values.imageTag }}
+    app.kubernetes.io/version: "{{ .Values.imageTag }}"
+    {{- end }}
+spec:
+  gateways:
+    - {{ .Release.Name }}-gateway
+  hosts:
+    {{- range .Values.gateway.hosts }}
+    - {{ . | quote }}
+    {{- end }}  
+  http:
+    # Backend API routes - must come first (more specific match)
+    - name: {{ .Release.Name }}-backend-route
+      match:
+        - uri:
+            prefix: /{{ .Release.Name }}/api
+      rewrite:
+        uri: /api
+      route:
+        - destination:
+            host: {{ include "airflow-health-dashboard.fullname" . }}-backend.{{ .Release.Namespace }}.svc.cluster.local
+            port:
+              number: {{ .Values.backend.service.port | default 8000 }}
+      headers:
+        response:
+          add:
+            X-Frame-Options: "SAMEORIGIN"
+            X-Content-Type-Options: "nosniff"
+      corsPolicy:
+        allowOrigins:
+        - prefix: "https://datatech.sgbank.st"
+        allowMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+        allowHeaders:
+        - "*"
+        allowCredentials: true
+    
+    # Frontend routes
+    - name: {{ .Release.Name }}-frontend-route
+      match:
+        - uri:
+            prefix: /{{ .Release.Name }}
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: {{ include "airflow-health-dashboard.fullname" . }}-frontend.{{ .Release.Namespace }}.svc.cluster.local
+            port:
+              number: {{ .Values.frontend.service.port | default 8080 }}
+      headers:
+        response:
+          add:
+            X-Frame-Options: "SAMEORIGIN"
+            X-Content-Type-Options: "nosniff"
+{{- end }}
+{{- end }}

@@ -1,0 +1,181 @@
+# Production Values
+# For production environment
+
+gateway:
+  enabled: true
+  annotations: {}
+  hosts:
+    - "*.ap-southeast-1.elb.amazonaws.com"
+    - "datatech.sgbank.pr"
+  tls: true
+
+# ServiceAccount with IAM role for Vault access
+serviceAccount:
+  create: true
+  name: de-oncall-sa
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::589230727051:role/oncall-agent-eks-role"
+
+backend:
+  replicaCount: 2
+  
+  image:
+    repository: airflow-health-backend
+    tag: "1.0.0"  # Use specific version tag in production
+    pullPolicy: IfNotPresent
+  
+  airflow:
+    baseUrl: "http://airflow-webserver.airflow.svc.cluster.local:8080"
+    authMethod: "basic"
+  
+  # HashiCorp Vault configuration
+  vault:
+    enabled: true
+    role: "airflow-health-dashboard-role"
+    path: "data-prod/app/data-prod-de/platform-apps/airflow-health-dashboard"
+  
+  llm:
+    enabled: true
+    provider: "azure_openai"
+    model: "gpt-4o"
+    azureOpenAI:
+      endpoint: "https://gxs-prod-gpt-sg-001.openai.azure.com"
+      apiVersion: "2024-10-21"
+      deploymentName: "gpt-4o-2024-08-06"
+  
+  slack:
+    enabled: true
+  
+  scheduledReports:
+    enabled: true
+    morningReportHour: 10
+    morningReportMinute: 0
+    eveningReportHour: 19
+    eveningReportMinute: 0
+    dashboardUrl: "https://airflow-health.sgbank.pr"
+  
+  corsOrigins:
+    - "https://airflow-health.sgbank.pr"
+    - "https://airflow.sgbank.pr"
+  
+  logLevel: "INFO"
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+  
+  # Vault annotations for pod
+  podAnnotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "airflow-health-dashboard-role"
+    vault.hashicorp.com/agent-cache-enable: "true"
+    vault.hashicorp.com/agent-init-first: "true"
+    vault.hashicorp.com/agent-pre-populate-only: "true"
+    
+    vault.hashicorp.com/agent-inject-secret-SECRETS: "data-prod/app/data-prod-de/platform-apps/airflow-health-dashboard"
+    vault.hashicorp.com/agent-inject-file-SECRETS: "secrets"
+    vault.hashicorp.com/agent-inject-template-SECRETS: |
+      {{- with secret "data-prod/app/data-prod-de/platform-apps/airflow-health-dashboard" -}}
+      export AIRFLOW_USERNAME='{{ .Data.data.AIRFLOW_USERNAME }}'
+      export AIRFLOW_PASSWORD='{{ .Data.data.AIRFLOW_PASSWORD }}'
+      export LLM_API_KEY='{{ .Data.data.LLM_API_KEY }}'
+      export SLACK_WEBHOOK_URL='{{ .Data.data.SLACK_WEBHOOK_URL }}'
+      {{- end -}}
+
+frontend:
+  replicaCount: 2
+  
+  image:
+    repository: airflow-health-frontend
+    tag: "1.0.0"  # Use specific version tag in production
+    pullPolicy: IfNotPresent
+  
+  apiUrl: "https://airflow-health.sgbank.pr/api/v1"
+  airflowUrl: "https://airflow.sgbank.pr"
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+# Use external Redis for production
+redis:
+  enabled: true
+  external:
+    enabled: false
+  
+  persistence:
+    enabled: true
+    storageClass: "gp3"
+    size: 20Gi
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+# Enable ingress for production
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  
+  hosts:
+    - host: airflow-health.sgbank.pr
+      paths:
+        - path: /
+          pathType: Prefix
+          backend: frontend
+        - path: /api
+          pathType: Prefix
+          backend: backend
+  
+  tls:
+    - secretName: airflow-health-tls
+      hosts:
+        - airflow-health.sgbank.pr
+
+# Enable network policies for production
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector: {}
+
+# Enable pod disruption budgets
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Secrets - disabled when using Vault
+secrets:
+  create: false
