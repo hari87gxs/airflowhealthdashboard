@@ -12,15 +12,7 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build arguments for environment variables
-ARG VITE_API_URL=/api/v1
-ARG VITE_AIRFLOW_URL=http://localhost:8080
-
-# Set environment variables for build
-ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_AIRFLOW_URL=$VITE_AIRFLOW_URL
-
-# Build the application
+# Build the application (without hardcoded env vars - will use runtime injection)
 RUN npm run build
 
 # Production stage
@@ -31,6 +23,10 @@ COPY --from=build /app/dist /usr/share/nginx/html
 
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy environment variable injection script
+COPY env.sh /docker-entrypoint.d/40-env.sh
+RUN chmod +x /docker-entrypoint.d/40-env.sh
 
 # Create a custom nginx.conf that works with non-root user
 RUN printf 'pid /tmp/nginx.pid;\n\

@@ -18,11 +18,11 @@ backend:
   
   image:
     repository: 851255665500.dkr.ecr.ap-southeast-1.amazonaws.com/data-cx-buddy
-    tag: "airflowhealthdashboard-backend-v.0.0.2"
+    tag: "airflowhealthdashboard-backend-v.0.0.3"
     pullPolicy: Always
   
   airflow:
-    # Use internal Kubernetes service DNS for Airflow
+    # Use internal Kubernetes service DNS for Airflow API calls
     baseUrl: "http://airflow-webserver.airflow-stg-app-01.svc.cluster.local:8080"
     authMethod: "basic"
     username: "admin"
@@ -109,7 +109,7 @@ frontend:
   
   image:
     repository: 851255665500.dkr.ecr.ap-southeast-1.amazonaws.com/data-cx-buddy
-    tag: "airflowhealthdashboard-frontend-v.0.0.5"
+    tag: "airflowhealthdashboard-frontend-v.0.0.19"
     pullPolicy: Always
 
   service:

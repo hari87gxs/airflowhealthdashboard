@@ -20,7 +20,15 @@ function Dashboard() {
   const [isForceRefreshing, setIsForceRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(null);
 
+  useEffect(() => {
+    console.log('📊 Dashboard component mounted');
+    return () => {
+      console.log('📊 Dashboard component unmounted');
+    };
+  }, []);
+
   const fetchDashboard = useCallback(async (forceRefresh = false) => {
+    console.log(`🔄 Fetching dashboard data (timeRange=${timeRange}, forceRefresh=${forceRefresh})...`);
     try {
       setLoading(true);
       setError(null);
@@ -28,20 +36,31 @@ function Dashboard() {
         setIsForceRefreshing(true);
       }
       const data = await api.getDomains(timeRange, forceRefresh);
+      console.log('✅ Dashboard data fetched successfully:', {
+        totalDomains: data?.total_domains,
+        totalDags: data?.total_dags,
+        domainsCount: data?.domains?.length,
+      });
       setDashboardData(data);
       setIsAirflowAvailable(true); // Successfully fetched from Airflow
       setLastRefreshTime(new Date());
     } catch (err) {
+      console.error('❌ Failed to fetch dashboard:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
       setError(err.message);
       setIsAirflowAvailable(false); // Airflow is unavailable
-      console.error('Failed to fetch dashboard:', err);
     } finally {
       setLoading(false);
       setIsForceRefreshing(false);
+      console.log('🏁 Dashboard fetch complete');
     }
   }, [timeRange]);
 
   useEffect(() => {
+    console.log('⚡ Time range changed to:', timeRange);
     fetchDashboard();
   }, [timeRange, fetchDashboard]);
 
@@ -81,7 +100,17 @@ function Dashboard() {
     );
   };
 
+  console.log('🎨 Dashboard render state:', {
+    loading,
+    hasError: !!error,
+    hasDashboardData: !!dashboardData,
+    isAirflowAvailable,
+    isForceRefreshing,
+    domainsLength: dashboardData?.domains?.length,
+  });
+
   if (loading && !dashboardData) {
+    console.log('⏳ Showing loading spinner...');
     return (
       <div className="flex flex-col justify-center items-center h-64 space-y-4">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -93,6 +122,7 @@ function Dashboard() {
   }
 
   if (error) {
+    console.log('❌ Showing error state:', error);
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-red-800 mb-2">Error</h2>
@@ -109,6 +139,8 @@ function Dashboard() {
 
   // Show warning if Airflow is unavailable
   const showAirflowWarning = !isAirflowAvailable && dashboardData;
+  
+  console.log('✨ Rendering dashboard content...');
 
   return (
     <div className="space-y-6">

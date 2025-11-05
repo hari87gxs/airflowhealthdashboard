@@ -244,7 +244,7 @@ class HealthService:
                 state=DagRunState(
                     run.get("state") or "queued"
                 ),  # Default to queued if state is None
-                airflow_url=f"{settings.airflow_base_url}/dags/{dag_id}/grid?dag_run_id={run['dag_run_id']}",
+                airflow_url=f"{settings.airflow_ui_url}/dags/{dag_id}/grid?dag_run_id={run['dag_run_id']}",
             )
             summaries.append(summary)
 
@@ -436,7 +436,7 @@ class HealthService:
             queued_count=queued_count,
             last_run_state=last_run_state,
             last_run_date=last_run_date,
-            airflow_dag_url=f"{settings.airflow_base_url}/dags/{dag_id}/grid",
+            airflow_dag_url=f"{settings.airflow_ui_url}/dags/{dag_id}/grid",
         )
 
     async def get_failure_analysis(
@@ -606,7 +606,7 @@ class HealthService:
                                 "task_id": task_id,
                                 "execution_date": run.get("execution_date"),
                                 "log_content": log_content[:5000],  # Limit log size
-                                "airflow_log_url": f"{settings.airflow_base_url}/dags/{dag_id}/grid?dag_run_id={dag_run_id}&task_id={task_id}",
+                                "airflow_log_url": f"{settings.airflow_ui_url}/dags/{dag_id}/grid?dag_run_id={dag_run_id}&task_id={task_id}",
                             }
                         )
                         count += 1

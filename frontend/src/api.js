@@ -4,7 +4,20 @@
 
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+// Use runtime config if available, otherwise fall back to build-time env vars
+const getEnvVar = (key, defaultValue) => {
+  // Check runtime config first
+  if (window._env_ && window._env_[key]) {
+    return window._env_[key];
+  }
+  // Fall back to build-time Vite env vars
+  return import.meta.env[key] || defaultValue;
+};
+
+const API_BASE_URL = getEnvVar('VITE_API_URL', 'http://localhost:8000/api/v1');
+
+console.log('🔧 API Client initialized with base URL:', API_BASE_URL);
+console.log('🌍 Runtime environment:', window._env_);
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -17,10 +30,19 @@ const apiClient = axios.create({
 // Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
-    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    const timestamp = new Date().toISOString();
+    console.log(`📤 [${timestamp}] API Request:`, {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      fullUrl: `${config.baseURL}${config.url}`,
+      params: config.params,
+      timeout: config.timeout,
+    });
     return config;
   },
   (error) => {
+    console.error('❌ Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -28,10 +50,29 @@ apiClient.interceptors.request.use(
 // Response interceptor
 apiClient.interceptors.response.use(
   (response) => {
+    const timestamp = new Date().toISOString();
+    console.log(`📥 [${timestamp}] API Response:`, {
+      status: response.status,
+      statusText: response.statusText,
+      url: response.config.url,
+      dataSize: JSON.stringify(response.data).length,
+      data: response.data,
+    });
     return response;
   },
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+    const timestamp = new Date().toISOString();
+    console.error(`❌ [${timestamp}] API Error:`, {
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      url: error.config?.url,
+      baseURL: error.config?.baseURL,
+      data: error.response?.data,
+      isTimeout: error.code === 'ECONNABORTED',
+      isNetworkError: error.message === 'Network Error',
+    });
     return Promise.reject(error);
   }
 );
@@ -44,8 +85,15 @@ export const api = {
    * Get health status
    */
   async getHealth() {
-    const response = await apiClient.get('/health');
-    return response.data;
+    console.log('🏥 Calling getHealth()...');
+    try {
+      const response = await apiClient.get('/health');
+      console.log('✅ getHealth() successful');
+      return response.data;
+    } catch (error) {
+      console.error('❌ getHealth() failed:', error.message);
+      throw error;
+    }
   },
 
   /**
@@ -54,14 +102,21 @@ export const api = {
    * @param {boolean} forceRefresh - Force refresh from Airflow, bypassing cache
    */
   async getDomains(timeRange = '24h', forceRefresh = false) {
-    const response = await apiClient.get('/domains', {
-      params: { 
-        time_range: timeRange,
-        force_refresh: forceRefresh
-      },
-      timeout: forceRefresh ? 120000 : 30000, // 120s for force refresh, 30s for cached
-    });
-    return response.data;
+    console.log(`📊 Calling getDomains(timeRange=${timeRange}, forceRefresh=${forceRefresh})...`);
+    try {
+      const response = await apiClient.get('/domains', {
+        params: { 
+          time_range: timeRange,
+          force_refresh: forceRefresh
+        },
+        timeout: forceRefresh ? 120000 : 30000, // 120s for force refresh, 30s for cached
+      });
+      console.log(`✅ getDomains() successful, found ${response.data?.domains?.length || 0} domains`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ getDomains() failed:', error.message);
+      throw error;
+    }
   },
 
   /**

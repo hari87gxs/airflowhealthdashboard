@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     airflow_base_url: str = Field(
         ..., description="Airflow webserver URL (e.g., http://localhost:8080)"
     )
+    airflow_public_url: Optional[str] = Field(
+        None,
+        description="Public Airflow URL for UI links (e.g., https://airflow.sgbank.st). If not set, uses airflow_base_url",
+    )
     airflow_username: Optional[str] = Field(
         None, description="Airflow username for basic auth"
     )
@@ -120,6 +124,18 @@ class Settings(BaseSettings):
     def validate_airflow_url(cls, v):
         """Ensure Airflow URL doesn't end with slash."""
         return v.rstrip("/")
+
+    @validator("airflow_public_url")
+    def validate_airflow_public_url(cls, v):
+        """Ensure Airflow public URL doesn't end with slash."""
+        if v:
+            return v.rstrip("/")
+        return v
+
+    @property
+    def airflow_ui_url(self) -> str:
+        """Get the URL to use for Airflow UI links (uses public URL if set, otherwise base URL)."""
+        return self.airflow_public_url or self.airflow_base_url
 
     @validator("morning_report_hour", "evening_report_hour")
     def validate_hour(cls, v):

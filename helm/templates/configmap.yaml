@@ -7,6 +7,9 @@ metadata:
     {{- include "airflow-health-dashboard.labels" . | nindent 4 }}
 data:
   AIRFLOW_BASE_URL: {{ .Values.backend.airflow.baseUrl | quote }}
+  {{- if .Values.frontend.airflowUrl }}
+  AIRFLOW_PUBLIC_URL: {{ .Values.frontend.airflowUrl | quote }}
+  {{- end }}
   CACHE_TTL_SECONDS: {{ .Values.backend.cache.ttlSeconds | quote }}
   REFRESH_INTERVAL_SECONDS: {{ .Values.backend.cache.refreshIntervalSeconds | quote }}
   BACKEND_HOST: "0.0.0.0"

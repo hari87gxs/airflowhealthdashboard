@@ -1,28 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import DomainDetail from './components/DomainDetail';
 import { api } from './api';
 
+// Helper to get environment variables with runtime config support
+const getEnvVar = (key, defaultValue) => {
+  if (window._env_ && window._env_[key]) {
+    return window._env_[key];
+  }
+  return import.meta.env[key] || defaultValue;
+};
+
 function App() {
   const [healthStatus, setHealthStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
 
   useEffect(() => {
+    console.log('🏥 App mounted, performing health check...');
     checkHealth();
   }, []);
 
+  useEffect(() => {
+    console.log('🧭 Route changed:', location.pathname);
+  }, [location]);
+
   const checkHealth = async () => {
+    console.log('🔍 Starting health check...');
     try {
       const health = await api.getHealth();
+      console.log('✅ Health check successful:', health);
       setHealthStatus(health);
     } catch (error) {
-      console.error('Health check failed:', error);
+      console.error('❌ Health check failed:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        url: error.config?.url,
+      });
       setHealthStatus({ status: 'error' });
     } finally {
       setLoading(false);
+      console.log('🏁 Health check complete');
     }
   };
+
+  console.log('🎨 App render state:', { loading, healthStatus: healthStatus?.status });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -57,7 +81,7 @@ function App() {
               )}
               
               <a
-                href={`${import.meta.env.VITE_AIRFLOW_URL || 'http://localhost:8080'}`}
+                href={getEnvVar('VITE_AIRFLOW_URL', 'http://localhost:8080')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-blue-600 hover:text-blue-800"
@@ -83,6 +107,12 @@ function App() {
             <p className="text-red-600">
               Unable to connect to the backend API. Please check the configuration.
             </p>
+            <button
+              onClick={checkHealth}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Retry Connection
+            </button>
           </div>
         ) : (
           <Routes>
